@@ -29,4 +29,7 @@ PeLoader_FreeLibrary(hModule);
 如果DLL有系统DLL之外的依赖，则需要把依赖DLL放到exe文件目录内，或者使用导入表回调进行内存加载依赖。  
 如果PeLoader_LoadLibrary失败，可从导入表回调打印输出，看看最后一个是什么，问题基本就是最后一条命令处。  
 例如GetModuleFileName命令，因为实例句柄对系统不存在，所以获取不到DLL的文件路径。 需要HOOK处理。  
-如果DLL加了壳，可能会加载失败。  
+如果DLL加了壳，可能会加载失败。 
+
+## 捐款
+![支付宝](https://github.com/hz86/peloader/blob/master/donate.jpg) 
