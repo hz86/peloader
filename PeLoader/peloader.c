@@ -22,19 +22,19 @@ typedef struct _SINGLELIST_HEADER {
 } SINGLELIST_HEADER;
 
 // DLL模块链表成员
-typedef struct MODULE_ENTRY {
+typedef struct _IMPORTMODULE_ENTRY {
 	SINGLELIST_ENTRY Entry;
 	LPCSTR           ModuleName;
 	HMODULE          Module;
 	UINT             Count;
-} MODULE_ENTRY;
+} IMPORTMODULE_ENTRY;
 
 // PE自定义数据
 typedef struct _PELOADERDATA {
 	SINGLELIST_HEADER  List;
 	DWORD              Flags;
 	PE_IMPORT_CALLBACK ImportCallback;
-	LPVOID             lParam;
+	LPVOID             Param;
 } PELOADERDATA;
 
 // DLL入口点
@@ -65,23 +65,23 @@ static DWORD AlignedSize(DWORD dwOrigin, DWORD dwAlignment)
 }
 
 // 压入成员
-static int SListEntryPush(SINGLELIST_HEADER* list_head, SINGLELIST_ENTRY* list_entry)
+static int SListEntryPush(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 {
-	list_entry->Next = list_head->Head;
-	list_head->Head = list_entry;
-	return ++list_head->Count;
+	lpEntry->Next = lpHead->Head;
+	lpHead->Head = lpEntry;
+	return ++lpHead->Count;
 }
 
 // 弹出成员
-static SINGLELIST_ENTRY* ListEntryPop(SINGLELIST_HEADER* list_head)
+static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 {
-	SINGLELIST_ENTRY* entry = list_head->Head;
+	SINGLELIST_ENTRY* lpEntry = lpHead->Head;
 
-	if (NULL != entry) {
-		list_head->Head = entry->Next;
+	if (NULL != lpEntry) {
+		lpHead->Head = lpEntry->Next;
 	}
 
-	return entry;
+	return lpEntry;
 }
 
 // 检查PE头
@@ -207,7 +207,7 @@ static VOID FreeRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, DWORD 
 				LPCSTR lpProcName = realIAT & IMAGE_ORDINAL_FLAG ? (LPCSTR)(realIAT & 65535) : (LPCSTR)(lpMemModule + realIAT + 2);
 
 				if (NULL != lpPeData->ImportCallback) {
-					lpPeData->ImportCallback(lpPeData->lParam, PE_IMPORTS_TYPE_FREE, lpModuleName, lpProcName, NULL);
+					lpPeData->ImportCallback(lpPeData->Param, PE_IMPORTS_TYPE_FREE, lpModuleName, lpProcName, NULL);
 				}
 				
 				j++;
@@ -216,14 +216,14 @@ static VOID FreeRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, DWORD 
 			i++;
 		}
 
-		MODULE_ENTRY* entry = NULL;
-		while (NULL != (entry = (MODULE_ENTRY*)ListEntryPop(&lpPeData->List)))
+		IMPORTMODULE_ENTRY* lpEntry = NULL;
+		while (NULL != (lpEntry = (IMPORTMODULE_ENTRY*)SListEntryPop(&lpPeData->List)))
 		{
-			for (UINT i = 0; i < entry->Count; i++) {
-				FreeLibrary(entry->Module);
+			for (UINT i = 0; i < lpEntry->Count; i++) {
+				FreeLibrary(lpEntry->Module);
 			}
 
-			free(entry);
+			free(lpEntry);
 		}
 	}
 }
@@ -273,31 +273,31 @@ static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMP
 					if (NULL != hModule)
 					{
 						// 查找
-						MODULE_ENTRY* entry = (MODULE_ENTRY*)lpPeData->List.Head;
-						while (NULL != entry)
+						IMPORTMODULE_ENTRY* lpEntry = (IMPORTMODULE_ENTRY*)lpPeData->List.Head;
+						while (NULL != lpEntry)
 						{
 							// 因为同一块内存，直接比较指针
-							if (entry->ModuleName == lpModuleName) {
+							if (lpEntry->ModuleName == lpModuleName) {
 								break;
 							}
 
 							// 下一个
-							entry = (MODULE_ENTRY*)entry->Entry.Next;
+							lpEntry = (IMPORTMODULE_ENTRY*)lpEntry->Entry.Next;
 						}
 
-						if (NULL != entry) {
-							entry->Count++; // 引用数+1
+						if (NULL != lpEntry) {
+							lpEntry->Count++; // 引用数+1
 						}
 						else
 						{
 							// 加入链表
-							entry = (MODULE_ENTRY*)malloc(sizeof(MODULE_ENTRY));
-							if (NULL != entry)
+							lpEntry = (IMPORTMODULE_ENTRY*)malloc(sizeof(IMPORTMODULE_ENTRY));
+							if (NULL != lpEntry)
 							{
-								entry->Count = 1;
-								entry->Module = hModule;
-								entry->ModuleName = lpModuleName;
-								SListEntryPush(&lpPeData->List, (SINGLELIST_ENTRY*)entry);
+								lpEntry->Count = 1;
+								lpEntry->Module = hModule;
+								lpEntry->ModuleName = lpModuleName;
+								SListEntryPush(&lpPeData->List, (SINGLELIST_ENTRY*)lpEntry);
 							}
 							else
 							{
@@ -383,7 +383,7 @@ HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, P
 	// 自定义数据
 	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
 	{
-		lpPeData->lParam = lParam;
+		lpPeData->Param = lParam;
 		lpPeData->ImportCallback = fnImportCallback;
 		lpPeData->Flags = dwFlags;
 		lpPeData->List.Head = NULL;
@@ -432,7 +432,7 @@ VOID WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
 
-	//计算大小
+	// 计算大小
 	WORD wOptionalHeaderOffset = lpNtHeader->FileHeader.SizeOfOptionalHeader - sizeof(IMAGE_OPTIONAL_HEADER);
 	PIMAGE_SECTION_HEADER lpSectionHeader = (PIMAGE_SECTION_HEADER)(lpMemModule + lpDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS) + wOptionalHeaderOffset);
 	DWORD dwSizeOfImage = lpNtHeader->OptionalHeader.SizeOfImage;
@@ -442,7 +442,7 @@ VOID WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 		dwSizeOfImage = MAX(dwSizeOfImage, AlignedSize(lpSectionHeader[i].VirtualAddress + MAX(lpSectionHeader[i].SizeOfRawData, lpSectionHeader[i].Misc.VirtualSize), lpNtHeader->OptionalHeader.SectionAlignment));
 	}
 
-	//根据加载方式处理
+	// 根据加载方式处理
 	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
 	if (IMAGE_FILE_DLL == (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_DLL) && (DONT_RESOLVE_DLL_REFERENCES != lpPeData->Flags) && (LOAD_LIBRARY_AS_DATAFILE != lpPeData->Flags))
 	{
@@ -510,4 +510,25 @@ FARPROC WINAPI PeLoader_GetEntryPoint(HMODULE hMemModule)
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
 	return (FARPROC)(lpMemModule + lpNtHeader->OptionalHeader.AddressOfEntryPoint);
+}
+
+// 获取自定义参数
+LPVOID WINAPI PeLoader_GetParam(HMODULE hMemModule)
+{
+	ULONG_PTR lpMemModule = (ULONG_PTR)hMemModule;
+	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
+	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
+
+	//计算大小
+	WORD wOptionalHeaderOffset = lpNtHeader->FileHeader.SizeOfOptionalHeader - sizeof(IMAGE_OPTIONAL_HEADER);
+	PIMAGE_SECTION_HEADER lpSectionHeader = (PIMAGE_SECTION_HEADER)(lpMemModule + lpDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS) + wOptionalHeaderOffset);
+	DWORD dwSizeOfImage = lpNtHeader->OptionalHeader.SizeOfImage;
+
+	// 取最大值
+	for (WORD i = 0; i < lpNtHeader->FileHeader.NumberOfSections; i++) {
+		dwSizeOfImage = MAX(dwSizeOfImage, AlignedSize(lpSectionHeader[i].VirtualAddress + MAX(lpSectionHeader[i].SizeOfRawData, lpSectionHeader[i].Misc.VirtualSize), lpNtHeader->OptionalHeader.SectionAlignment));
+	}
+
+	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
+	return lpPeData->Param;
 }

@@ -39,6 +39,9 @@ extern "C" {
 	// 取入口点
 	FARPROC WINAPI PeLoader_GetEntryPoint(HMODULE hMemModule);
 
+	// 获取自定义参数
+	LPVOID WINAPI PeLoader_GetParam(HMODULE hMemModule);
+
 #ifdef __cplusplus
 }
 #endif
