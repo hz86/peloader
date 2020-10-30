@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
-#include "peloader.h"
+#include "peloader-v2.h"
 
 unsigned int TestDllALen, TestDllBLen;
 unsigned char *TestDllA = NULL, *TestDllB = NULL;
@@ -83,11 +83,10 @@ void Test2()
 
 DWORD Test3_TestDllAModuleCount = 0;
 HMODULE Test3_TestDllAModule = NULL;
-HMODULE Test3Module = NULL;
 
 DWORD WINAPI HookGetModuleFileNameA(HMODULE hModule, LPSTR lpFilename, DWORD nSize)
 {
-	if (Test3Module == hModule)
+	if (PeLoader_IsModule(hModule))
 	{
 		return GetModuleFileNameA(0, lpFilename, nSize);
 	}
@@ -97,7 +96,7 @@ DWORD WINAPI HookGetModuleFileNameA(HMODULE hModule, LPSTR lpFilename, DWORD nSi
 
 DWORD WINAPI HookGetModuleFileNameW(HMODULE hModule, LPWSTR lpFilename, DWORD nSize)
 {
-	if (Test3Module == hModule)
+	if (PeLoader_IsModule(hModule))
 	{
 		return GetModuleFileNameW(0, lpFilename, nSize);
 	}
@@ -179,50 +178,79 @@ BOOL WINAPI Test3_Import(
 // DLL 有依赖系统外的DLL 内存加载依赖DLL
 void Test3()
 {
-	unsigned int len;
-	unsigned char* data = get_file(L"TestDllB.dll", &len);
-	if (NULL != data)
+	typedef const char* (*TESTA)();
+	HMODULE hModule = PeLoader_LoadLibrary(TestDllB, TestDllBLen, 0, Test3_Import, NULL);
+	if (NULL != hModule)
 	{
-		typedef const char* (*TESTA)();
-		HMODULE hModule = PeLoader_LoadLibrary(data, len, 0, Test3_Import, NULL);
-		if (NULL != hModule)
+		TESTA fnTestB = (TESTA)PeLoader_GetProcAddress(hModule, "TestB");
+		if (NULL != fnTestB)
 		{
-			Test3Module = hModule;
-
-			TESTA fnTestB = (TESTA)PeLoader_GetProcAddress(hModule, "TestB");
-			if (NULL != fnTestB)
-			{
-				printf("内存加载依赖 %s\r\n", fnTestB());
-			}
-			else
-			{
-				printf("内存DLL 函数地址获取失败\r\n");
-			}
-
-
-			TESTNAME fnTestName = (TESTNAME)PeLoader_GetProcAddress(hModule, "TestName");
-			if (NULL != fnTestName)
-			{
-				printf("DLL路径 %s\r\n", fnTestName());
-			}
-			else
-			{
-				printf("内存DLL 函数地址获取失败\r\n");
-			}
-
-
-			PeLoader_FreeLibrary(hModule);
+			printf("内存加载依赖 %s\r\n", fnTestB());
 		}
 		else
 		{
-			printf("内存加载DLL失败\r\n");
+			printf("内存DLL 函数地址获取失败\r\n");
 		}
 
-		free(data);
+		TESTNAME fnTestName = (TESTNAME)PeLoader_GetProcAddress(hModule, "TestName");
+		if (NULL != fnTestName)
+		{
+			printf("DLL路径 %s\r\n", fnTestName());
+		}
+		else
+		{
+			printf("内存DLL 函数地址获取失败\r\n");
+		}
+
+		PeLoader_FreeLibrary(hModule);
 	}
 	else
 	{
-		printf("DLL文件不存在\r\n");
+		printf("内存加载DLL失败\r\n");
+	}
+}
+
+// 测试V2版本 DLL文件包自动内存载入
+void Test4()
+{
+	HDLLS hDlls = PeLoader_DllPackage();
+	if (NULL != hDlls)
+	{
+		if (PeLoader_DllPackage_AddData(hDlls, "TestDllB.dll", TestDllB, TestDllBLen))
+		{
+			if (PeLoader_DllPackage_AddData(hDlls, "TestDllA.dll", TestDllA, TestDllALen))
+			{
+				HMODULE hModule = PeLoader_LoadLibraryV2(hDlls, 0, NULL, NULL);
+				if (NULL != hModule)
+				{
+					CHAR FileName[MAX_PATH];
+					PeLoader_GetModuleFileNameV2(hModule, FileName, MAX_PATH);
+
+					TESTB fnTestB = (TESTB)PeLoader_GetProcAddress(hModule, "TestB");
+					printf("%s , %s\r\n", fnTestB(), FileName);
+
+					PeLoader_FreeLibraryV2(hModule);
+				}
+				else
+				{
+					printf("内存加载DLL失败\r\n");
+				}
+			}
+			else
+			{
+				printf("文件包添加DLL\r\n");
+			}
+		}
+		else
+		{
+			printf("文件包添加DLL\r\n");
+		}
+
+		PeLoader_DllPackage_Free(hDlls);
+	}
+	else
+	{
+		printf("文件包创建失败\r\n");
 	}
 }
 
@@ -248,5 +276,6 @@ int main()
 		Test1();
 		Test2();
 		Test3();
+		Test4();
 	}
 }

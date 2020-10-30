@@ -144,9 +144,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="peloader-v2.c" />
     <ClCompile Include="peloader.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="peloader-v2.h" />
     <ClInclude Include="peloader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
