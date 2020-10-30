@@ -37,12 +37,36 @@ typedef struct _PELOADERDATA {
 	LPVOID             Param;
 } PELOADERDATA;
 
+// 全局句柄链表
+typedef struct _GLOBALMODULE_ENTRY {
+	SINGLELIST_ENTRY Entry;
+	HMODULE          Module;
+} GLOBALMODULE_ENTRY;
+
 // DLL入口点
 typedef BOOL(APIENTRY* DLLMAIN)(
 	HMODULE	hModule,
 	DWORD	fdwReason,
 	LPVOID	lpvReserved
 	);
+
+// 全局变量
+static unsigned int volatile GlobalMutex = 0;
+static SINGLELIST_HEADER GlobalModuleList = { 0 };
+
+// 自旋锁
+static void SpinLock()
+{
+	while (0 != InterlockedCompareExchange(&GlobalMutex, 1, 0)) {
+		// 旋转到 GlobalMutex 为0
+	}
+}
+
+// 自旋锁释放
+static void UnSpinLock()
+{
+	InterlockedExchange(&GlobalMutex, 0);
+}
 
 // 分配内存
 static LPVOID MemAlloc(LPVOID lpAddress, SIZE_T dwSize)
@@ -70,6 +94,31 @@ static int SListEntryPush(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 	lpEntry->Next = lpHead->Head;
 	lpHead->Head = lpEntry;
 	return ++lpHead->Count;
+}
+
+// 删除成员
+static SINGLELIST_ENTRY* SListEntryRemove(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
+{
+	SINGLELIST_ENTRY* lpPrevEntry = NULL;
+	SINGLELIST_ENTRY* lpLastEntry = lpHead->Head;
+
+	while (NULL != lpLastEntry)
+	{
+		if (lpLastEntry == lpEntry)
+		{
+			if (NULL == lpPrevEntry) {
+				lpHead->Head = lpLastEntry->Next;
+			}
+			else {
+				lpPrevEntry->Next = lpLastEntry->Next;
+			}
+		}
+
+		lpPrevEntry = lpLastEntry;
+		lpLastEntry = lpLastEntry->Next;
+	}
+
+	return lpLastEntry;
 }
 
 // 弹出成员
@@ -338,6 +387,27 @@ static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMP
 	return TRUE;
 }
 
+// 查找全局句柄成员
+static GLOBALMODULE_ENTRY* FindGlobalModuleEntry(HMODULE hMemModule)
+{
+	GLOBALMODULE_ENTRY* lpResult = NULL;
+	SpinLock(); // 线程安全
+	
+	GLOBALMODULE_ENTRY* lpEntry = (GLOBALMODULE_ENTRY*)GlobalModuleList.Head;
+	while (NULL != lpEntry)
+	{
+		if (lpEntry->Module == hMemModule) {
+			lpResult = lpEntry;
+			break;
+		}
+
+		lpEntry = (GLOBALMODULE_ENTRY*)lpEntry->Entry.Next;
+	}
+	
+	UnSpinLock();
+	return lpResult;
+}
+
 // 加载模块
 HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam)
 {
@@ -390,35 +460,59 @@ HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, P
 		lpPeData->List.Count = 0;
 	}
 
-	// 重定向
-	if (FALSE != DoRelocation(lpMemModule))
+	// 全局链表成员
+	GLOBALMODULE_ENTRY* lpGlobalModuleEntry = (GLOBALMODULE_ENTRY*)malloc(sizeof(GLOBALMODULE_ENTRY));
+	if (NULL != lpGlobalModuleEntry)
 	{
-		// 不初始化模块
-		if (dwFlags == DONT_RESOLVE_DLL_REFERENCES) {
-			return (HMODULE)lpMemModule;
-		}
+		// 设置模块句柄
+		lpGlobalModuleEntry->Module = (HMODULE)lpMemModule;
 
-		// 填充导入表
-		if (FALSE != FillRavAddress(lpPeData, lpMemModule, fnImportCallback, lParam))
+		// 重定向地址
+		if (FALSE != DoRelocation(lpMemModule))
 		{
-			// 不执行入口
-			if (IMAGE_FILE_DLL != (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_DLL) || (dwFlags == LOAD_LIBRARY_AS_DATAFILE)) {
+			// 不初始化模块
+			if (dwFlags == DONT_RESOLVE_DLL_REFERENCES)
+			{
+				SpinLock(); // 线程安全加入全局句柄链表
+				SListEntryPush(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
+				UnSpinLock();
+
 				return (HMODULE)lpMemModule;
 			}
 
-			// 是否存在入口
-			if (0 == lpNtHeader->OptionalHeader.AddressOfEntryPoint) {
-				return (HMODULE)lpMemModule;
-			}
+			// 填充导入表
+			if (FALSE != FillRavAddress(lpPeData, lpMemModule, fnImportCallback, lParam))
+			{
+				SpinLock(); // 线程安全加入全局句柄链表
+				SListEntryPush(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
+				UnSpinLock();
 
-			// 执行入口
-			DLLMAIN dllmain = (DLLMAIN)(lpMemModule + lpNtHeader->OptionalHeader.AddressOfEntryPoint);
-			if (FALSE != dllmain((HMODULE)lpMemModule, DLL_PROCESS_ATTACH, NULL)) {
-				return (HMODULE)lpMemModule;
-			}
+				// 不执行入口
+				if (IMAGE_FILE_DLL != (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_DLL) || (dwFlags == LOAD_LIBRARY_AS_DATAFILE)) {
+					return (HMODULE)lpMemModule;
+				}
 
-			FreeRavAddress(lpPeData, lpMemModule, 0);
+				// 是否存在入口
+				if (0 == lpNtHeader->OptionalHeader.AddressOfEntryPoint) {
+					return (HMODULE)lpMemModule;
+				}
+
+				// 执行入口
+				DLLMAIN dllmain = (DLLMAIN)(lpMemModule + lpNtHeader->OptionalHeader.AddressOfEntryPoint);
+				if (FALSE != dllmain((HMODULE)lpMemModule, DLL_PROCESS_ATTACH, NULL)) {
+					return (HMODULE)lpMemModule;
+				}
+
+				SpinLock(); // 线程安全移除全局句柄
+				SListEntryRemove(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
+				UnSpinLock();
+
+				// 释放导入模块
+				FreeRavAddress(lpPeData, lpMemModule, 0);
+			}
 		}
+
+		free(lpGlobalModuleEntry);
 	}
 
 	MemFree((LPVOID)lpMemModule);
@@ -426,8 +520,13 @@ HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, P
 }
 
 // 释放模块
-VOID WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
+BOOL WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 {
+	GLOBALMODULE_ENTRY* lpGlobalModuleEntry = FindGlobalModuleEntry(hMemModule);
+	if (NULL == lpGlobalModuleEntry) {
+		return FALSE;
+	}
+
 	ULONG_PTR lpMemModule = (ULONG_PTR)hMemModule;
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
@@ -452,11 +551,18 @@ VOID WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 		}
 	}
 
+	SpinLock(); // 线程安全移除全局句柄
+	SListEntryRemove(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
+	UnSpinLock();
+
+	// 释放导入模块
 	if (DONT_RESOLVE_DLL_REFERENCES != lpPeData->Flags) {
 		FreeRavAddress(lpPeData, lpMemModule, 0);
 	}
 
-	MemFree((LPVOID)lpMemModule);
+	free(lpGlobalModuleEntry);
+	MemFree(hMemModule);
+	return TRUE;
 }
 
 // 取函数地址
@@ -529,6 +635,13 @@ LPVOID WINAPI PeLoader_GetParam(HMODULE hMemModule)
 		dwSizeOfImage = MAX(dwSizeOfImage, AlignedSize(lpSectionHeader[i].VirtualAddress + MAX(lpSectionHeader[i].SizeOfRawData, lpSectionHeader[i].Misc.VirtualSize), lpNtHeader->OptionalHeader.SectionAlignment));
 	}
 
+	// 取出自定义参数
 	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
 	return lpPeData->Param;
+}
+
+// 判断句柄是否有效
+BOOL WINAPI PeLoader_IsModule(HMODULE hMemModule)
+{
+	return NULL != FindGlobalModuleEntry(hMemModule);
 }

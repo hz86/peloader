@@ -31,7 +31,7 @@ extern "C" {
 	HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam);
 
 	// 释放模块
-	VOID WINAPI PeLoader_FreeLibrary(HMODULE hMemModule);
+	BOOL WINAPI PeLoader_FreeLibrary(HMODULE hMemModule);
 
 	// 取函数地址
 	FARPROC WINAPI PeLoader_GetProcAddress(HMODULE hMemModule, LPCSTR lpProcName);
@@ -41,6 +41,9 @@ extern "C" {
 
 	// 获取自定义参数
 	LPVOID WINAPI PeLoader_GetParam(HMODULE hMemModule);
+
+	// 判断句柄是否有效
+	BOOL WINAPI PeLoader_IsModule(HMODULE hMemModule);
 
 #ifdef __cplusplus
 }
