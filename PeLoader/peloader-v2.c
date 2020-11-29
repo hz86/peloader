@@ -56,6 +56,7 @@ static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 	if (NULL != lpEntry)
 	{
 		lpHead->Head = lpEntry->Next;
+		--lpHead->Count;
 	}
 
 	return lpEntry;

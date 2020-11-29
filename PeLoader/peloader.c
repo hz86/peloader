@@ -112,6 +112,9 @@ static SINGLELIST_ENTRY* SListEntryRemove(SINGLELIST_HEADER* lpHead, SINGLELIST_
 			else {
 				lpPrevEntry->Next = lpLastEntry->Next;
 			}
+
+			--lpHead->Count;
+			break;
 		}
 
 		lpPrevEntry = lpLastEntry;
@@ -128,6 +131,7 @@ static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 
 	if (NULL != lpEntry) {
 		lpHead->Head = lpEntry->Next;
+		--lpHead->Count;
 	}
 
 	return lpEntry;
