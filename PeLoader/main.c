@@ -216,11 +216,11 @@ void Test4()
 	HDLLS hDlls = PeLoader_DllPackage();
 	if (NULL != hDlls)
 	{
-		if (PeLoader_DllPackage_AddData(hDlls, "TestDllB.dll", TestDllB, TestDllBLen))
+		if (PeLoader_DllPackage_AddData(hDlls, "TestDllB.dll", TestDllB, TestDllBLen, 0))
 		{
-			if (PeLoader_DllPackage_AddData(hDlls, "TestDllA.dll", TestDllA, TestDllALen))
+			if (PeLoader_DllPackage_AddData(hDlls, "TestDllA.dll", TestDllA, TestDllALen, 0))
 			{
-				HMODULE hModule = PeLoader_LoadLibraryV2(hDlls, 0, NULL, NULL);
+				HMODULE hModule = PeLoader_LoadLibraryV2(hDlls, NULL, NULL);
 				if (NULL != hModule)
 				{
 					CHAR FileName[MAX_PATH];

@@ -1,37 +1,38 @@
-#include "peloader-v2.h"
+ï»¿#include "peloader-v2.h"
 
-// Á´±í³ÉÔ±
+// é“¾è¡¨æˆå‘˜
 typedef struct _SINGLELIST_ENTRY {
 	struct _SINGLELIST_ENTRY* Next;
 } SINGLELIST_ENTRY;
 
-// Á´±íÍ·
+// é“¾è¡¨å¤´
 typedef struct _SINGLELIST_HEADER {
 	UINT              Count;
 	SINGLELIST_ENTRY* Head;
 } SINGLELIST_HEADER;
 
-// DLLÊı¾İ°ü³ÉÔ±
+// DLLæ•°æ®åŒ…æˆå‘˜
 typedef struct _DLLPACKAGE_ENTRY {
 	SINGLELIST_ENTRY Entry;
 	CHAR             Name[MAX_PATH];
 	LPBYTE           Data;
 	DWORD            DataLen;
+	DWORD            Flags;
 } DLLPACKAGE_ENTRY;
 
-// DLLÊı¾İ°ü
+// DLLæ•°æ®åŒ…
 typedef struct _DLLPACKAGE {
 	SINGLELIST_HEADER  List;
 } DLLPACKAGE;
 
-// ×Ô¶¨ÒåÊı¾İ
+// è‡ªå®šä¹‰æ•°æ®
 typedef struct _PELOADER {
 	SINGLELIST_HEADER  List;
 	PE_IMPORT_CALLBACK ImportCallback;
 	LPVOID             Param;
 } PELOADER;
 
-// µ¼Èë±í¾ä±ú³ÉÔ±
+// å¯¼å…¥è¡¨å¥æŸ„æˆå‘˜
 typedef struct _MODULE_ENTRY {
 	SINGLELIST_ENTRY  Entry;
 	DLLPACKAGE_ENTRY* PackEntry;
@@ -40,7 +41,7 @@ typedef struct _MODULE_ENTRY {
 	DWORD             Count;
 } MODULE_ENTRY;
 
-// Ñ¹Èë³ÉÔ±
+// å‹å…¥æˆå‘˜
 static int SListEntryPush(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 {
 	lpEntry->Next = lpHead->Head;
@@ -48,7 +49,7 @@ static int SListEntryPush(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 	return ++lpHead->Count;
 }
 
-// µ¯³ö³ÉÔ±
+// å¼¹å‡ºæˆå‘˜
 static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 {
 	SINGLELIST_ENTRY* lpEntry = lpHead->Head;
@@ -62,7 +63,7 @@ static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 	return lpEntry;
 }
 
-// µ¼Èë±í´¦Àí»Øµ÷
+// å¯¼å…¥è¡¨å¤„ç†å›è°ƒ
 static BOOL WINAPI PeLoader_ImportProc(
 	LPVOID          lParam,
 	PE_IMPORTS_TYPE dwType,
@@ -89,7 +90,7 @@ static BOOL WINAPI PeLoader_ImportProc(
 			{
 				if (NULL == lpModuleEntry->Module) {
 					lpModuleEntry->Module = PeLoader_LoadLibrary(lpModuleEntry->PackEntry->Data, 
-						lpModuleEntry->PackEntry->DataLen, 0, PeLoader_ImportProc, lpPeData);
+						lpModuleEntry->PackEntry->DataLen, lpModuleEntry->PackEntry->Flags, PeLoader_ImportProc, lpPeData);
 				}
 
 				if (NULL != lpModuleEntry->Module) {
@@ -129,7 +130,7 @@ static BOOL WINAPI PeLoader_ImportProc(
 	return FALSE;
 }
 
-// ´´½¨DLLÎÄ¼ş°ü
+// åˆ›å»ºDLLæ–‡ä»¶åŒ…
 HDLLS WINAPI PeLoader_DllPackage()
 {
 	DLLPACKAGE* lpPack = (DLLPACKAGE*)malloc(sizeof(DLLPACKAGE));
@@ -141,8 +142,8 @@ HDLLS WINAPI PeLoader_DllPackage()
 	return (HDLLS)lpPack;
 }
 
-// Ìí¼ÓDLLÎÄ¼şÊı¾İ
-BOOL WINAPI PeLoader_DllPackage_AddData(HDLLS hDlls, LPCSTR lpName, LPBYTE lpData, DWORD dwLen)
+// æ·»åŠ DLLæ–‡ä»¶æ•°æ®
+BOOL WINAPI PeLoader_DllPackage_AddData(HDLLS hDlls, LPCSTR lpName, LPBYTE lpData, DWORD dwLen, DWORD dwFlags)
 {
 	if (strlen(lpName) >= MAX_PATH) {
 		return FALSE;
@@ -156,6 +157,7 @@ BOOL WINAPI PeLoader_DllPackage_AddData(HDLLS hDlls, LPCSTR lpName, LPBYTE lpDat
 		if (NULL != entry->Data)
 		{
 			entry->DataLen = dwLen;
+			entry->Flags = dwFlags;
 			memcpy(entry->Data, lpData, dwLen);
 			strcpy_s(entry->Name, MAX_PATH, lpName);
 			SListEntryPush(&lpPack->List, (SINGLELIST_ENTRY*)entry);
@@ -168,7 +170,7 @@ BOOL WINAPI PeLoader_DllPackage_AddData(HDLLS hDlls, LPCSTR lpName, LPBYTE lpDat
 	return FALSE;
 }
 
-// ÊÍ·ÅÎÄ¼ş°ü
+// é‡Šæ”¾æ–‡ä»¶åŒ…
 VOID WINAPI PeLoader_DllPackage_Free(HDLLS hDlls)
 {
 	DLLPACKAGE_ENTRY* entry = NULL;
@@ -183,8 +185,8 @@ VOID WINAPI PeLoader_DllPackage_Free(HDLLS hDlls)
 	free(hDlls);
 }
 
-// ¼ÓÔØÄ£¿é
-HMODULE WINAPI PeLoader_LoadLibraryV2(HDLLS hDlls, DWORD dwFlags, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam)
+// åŠ è½½æ¨¡å—
+HMODULE WINAPI PeLoader_LoadLibraryV2(HDLLS hDlls, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam)
 {
 	DLLPACKAGE* lpPack = (DLLPACKAGE*)hDlls;
 	if (NULL == lpPack)
@@ -203,7 +205,9 @@ HMODULE WINAPI PeLoader_LoadLibraryV2(HDLLS hDlls, DWORD dwFlags, PE_IMPORT_CALL
 	memset(&lpPeData->List, 0, sizeof(lpPeData->List));
 
 	HMODULE* lpMainModule = NULL;
-	DWORD dwMainDllLen = 0;LPBYTE lpMainDllData = NULL;
+	LPBYTE lpMainDllData = NULL;
+	DWORD dwMainDllLen = 0;
+	DWORD dwFlags = 0;
 
 	MODULE_ENTRY* lpModuleEntry = NULL;
 	DLLPACKAGE_ENTRY* lpPackEntry = (DLLPACKAGE_ENTRY*)lpPack->List.Head;
@@ -221,6 +225,7 @@ HMODULE WINAPI PeLoader_LoadLibraryV2(HDLLS hDlls, DWORD dwFlags, PE_IMPORT_CALL
 		strcpy_s(lpModuleEntry->Name, MAX_PATH, lpPackEntry->Name);
 		SListEntryPush(&lpPeData->List, (SINGLELIST_ENTRY*)lpModuleEntry);
 
+		dwFlags = lpPackEntry->Flags;
 		lpMainDllData = lpPackEntry->Data;
 		dwMainDllLen = lpPackEntry->DataLen;
 		lpMainModule = &lpModuleEntry->Module;
@@ -252,7 +257,7 @@ ERRORFREE:
 	return NULL;
 }
 
-// ÊÍ·ÅÄ£¿é
+// é‡Šæ”¾æ¨¡å—
 BOOL WINAPI PeLoader_FreeLibraryV2(HMODULE hMemModule)
 {
 	if (FALSE != PeLoader_IsModule(hMemModule))
@@ -273,14 +278,14 @@ BOOL WINAPI PeLoader_FreeLibraryV2(HMODULE hMemModule)
 	return FALSE;
 }
 
-// »ñÈ¡×Ô¶¨Òå²ÎÊı
+// è·å–è‡ªå®šä¹‰å‚æ•°
 LPVOID WINAPI PeLoader_GetParamV2(HMODULE hMemModule)
 {
 	PELOADER* lpPeData = (PELOADER*)PeLoader_GetParam(hMemModule);
 	return lpPeData->Param;
 }
 
-// »ñÈ¡Ä£¿éÃû
+// è·å–æ¨¡å—å
 BOOL WINAPI PeLoader_GetModuleFileNameV2(HMODULE hMemModule, LPSTR lpFilename, DWORD nSize)
 {
 	PELOADER* lpPeData = (PELOADER*)PeLoader_GetParam(hMemModule);

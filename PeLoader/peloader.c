@@ -1,4 +1,4 @@
-#include "peloader.h"
+ï»¿#include "peloader.h"
 
 #define MAX(a,b) (a>b?a:b)
 
@@ -10,18 +10,18 @@ typedef DWORD	QDWORD;
 typedef PDWORD	PQDWORD;
 #endif
 
-// Á´±í³ÉÔ±
+// é“¾è¡¨æˆå‘˜
 typedef struct _SINGLELIST_ENTRY {
 	struct _SINGLELIST_ENTRY* Next;
 } SINGLELIST_ENTRY;
 
-// Á´±íÍ·
+// é“¾è¡¨å¤´
 typedef struct _SINGLELIST_HEADER {
 	UINT              Count;
 	SINGLELIST_ENTRY* Head;
 } SINGLELIST_HEADER;
 
-// DLLÄ£¿éÁ´±í³ÉÔ±
+// DLLæ¨¡å—é“¾è¡¨æˆå‘˜
 typedef struct _IMPORTMODULE_ENTRY {
 	SINGLELIST_ENTRY Entry;
 	LPCSTR           ModuleName;
@@ -29,7 +29,7 @@ typedef struct _IMPORTMODULE_ENTRY {
 	UINT             Count;
 } IMPORTMODULE_ENTRY;
 
-// PE×Ô¶¨ÒåÊı¾İ
+// PEè‡ªå®šä¹‰æ•°æ®
 typedef struct _PELOADERDATA {
 	SINGLELIST_HEADER  List;
 	DWORD              Flags;
@@ -37,58 +37,58 @@ typedef struct _PELOADERDATA {
 	LPVOID             Param;
 } PELOADERDATA;
 
-// È«¾Ö¾ä±úÁ´±í
+// å…¨å±€å¥æŸ„é“¾è¡¨
 typedef struct _GLOBALMODULE_ENTRY {
 	SINGLELIST_ENTRY Entry;
 	HMODULE          Module;
 } GLOBALMODULE_ENTRY;
 
-// DLLÈë¿Úµã
+// DLLå…¥å£ç‚¹
 typedef BOOL(APIENTRY* DLLMAIN)(
 	HMODULE	hModule,
 	DWORD	fdwReason,
 	LPVOID	lpvReserved
 	);
 
-// È«¾Ö±äÁ¿
+// å…¨å±€å˜é‡
 static unsigned int volatile GlobalMutex = 0;
 static SINGLELIST_HEADER GlobalModuleList = { 0 };
 
-// ×ÔĞıËø
+// è‡ªæ—‹é”
 static void SpinLock()
 {
 	while (0 != InterlockedCompareExchange(&GlobalMutex, 1, 0)) {
-		// Ğı×ªµ½ GlobalMutex Îª0
+		// æ—‹è½¬åˆ° GlobalMutex ä¸º0
 	}
 }
 
-// ×ÔĞıËøÊÍ·Å
+// è‡ªæ—‹é”é‡Šæ”¾
 static void UnSpinLock()
 {
 	InterlockedExchange(&GlobalMutex, 0);
 }
 
-// ·ÖÅäÄÚ´æ
+// åˆ†é…å†…å­˜
 static LPVOID MemAlloc(LPVOID lpAddress, SIZE_T dwSize)
 {
-	LPVOID lpMemAddress = VirtualAlloc(lpAddress, dwSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);	//Ö¸¶¨»ùÖ·
-	if (NULL == lpMemAddress) lpMemAddress = VirtualAlloc(NULL, dwSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);	//Ëæ»ú»ùÖ·
+	LPVOID lpMemAddress = VirtualAlloc(lpAddress, dwSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);	//æŒ‡å®šåŸºå€
+	if (NULL == lpMemAddress) lpMemAddress = VirtualAlloc(NULL, dwSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);	//éšæœºåŸºå€
 	return lpMemAddress;
 }
 
-// ÊÍ·ÅÄÚ´æ
+// é‡Šæ”¾å†…å­˜
 static void MemFree(LPVOID lpAddress)
 {
 	VirtualFree(lpAddress, 0, MEM_RELEASE);
 }
 
-// ¼ÆËã¶ÔÆëºó´óĞ¡
+// è®¡ç®—å¯¹é½åå¤§å°
 static DWORD AlignedSize(DWORD dwOrigin, DWORD dwAlignment)
 {
 	return (dwOrigin + dwAlignment - 1) / dwAlignment * dwAlignment;
 }
 
-// Ñ¹Èë³ÉÔ±
+// å‹å…¥æˆå‘˜
 static int SListEntryPush(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 {
 	lpEntry->Next = lpHead->Head;
@@ -96,7 +96,7 @@ static int SListEntryPush(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 	return ++lpHead->Count;
 }
 
-// É¾³ı³ÉÔ±
+// åˆ é™¤æˆå‘˜
 static SINGLELIST_ENTRY* SListEntryRemove(SINGLELIST_HEADER* lpHead, SINGLELIST_ENTRY* lpEntry)
 {
 	SINGLELIST_ENTRY* lpPrevEntry = NULL;
@@ -124,7 +124,7 @@ static SINGLELIST_ENTRY* SListEntryRemove(SINGLELIST_HEADER* lpHead, SINGLELIST_
 	return lpLastEntry;
 }
 
-// µ¯³ö³ÉÔ±
+// å¼¹å‡ºæˆå‘˜
 static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 {
 	SINGLELIST_ENTRY* lpEntry = lpHead->Head;
@@ -137,7 +137,7 @@ static SINGLELIST_ENTRY* SListEntryPop(SINGLELIST_HEADER* lpHead)
 	return lpEntry;
 }
 
-// ¼ì²éPEÍ·
+// æ£€æŸ¥PEå¤´
 static BOOL CheckPeHeader(LPBYTE lpData, DWORD dwLen)
 {
 	if (NULL == lpData) {
@@ -172,7 +172,7 @@ static BOOL CheckPeHeader(LPBYTE lpData, DWORD dwLen)
 	}
 #endif
 
-	if (IMAGE_FILE_EXECUTABLE_IMAGE != (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE)) {	//¿ÉÖ´ĞĞ
+	if (IMAGE_FILE_EXECUTABLE_IMAGE != (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE)) {	//å¯æ‰§è¡Œ
 		return FALSE;
 	}
 
@@ -193,7 +193,7 @@ static BOOL CheckPeHeader(LPBYTE lpData, DWORD dwLen)
 	return TRUE;
 }
 
-// ÖØ¶¨Ïò
+// é‡å®šå‘
 static BOOL DoRelocation(ULONG_PTR lpMemModule)
 {
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
@@ -237,7 +237,7 @@ static BOOL DoRelocation(ULONG_PTR lpMemModule)
 	return TRUE;
 }
 
-// ÊÍ·Åµ¼ÈëÄ£¿é
+// é‡Šæ”¾å¯¼å…¥æ¨¡å—
 static VOID FreeRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, DWORD dwSize)
 {
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
@@ -253,8 +253,8 @@ static VOID FreeRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, DWORD 
 			DWORD j = 0;
 			QDWORD realIAT = 0;
 
-			LPCSTR lpModuleName = (LPCSTR)(lpMemModule + lpImportDescriptor[i].Name);	// Ä£¿éÃû
-			DWORD dwFirstThunk = lpImportDescriptor[i].OriginalFirstThunk ? lpImportDescriptor[i].OriginalFirstThunk : lpImportDescriptor[i].FirstThunk;	// IAT±í
+			LPCSTR lpModuleName = (LPCSTR)(lpMemModule + lpImportDescriptor[i].Name);	// æ¨¡å—å
+			DWORD dwFirstThunk = lpImportDescriptor[i].OriginalFirstThunk ? lpImportDescriptor[i].OriginalFirstThunk : lpImportDescriptor[i].FirstThunk;	// IATè¡¨
 			while (0 != (realIAT = ((PQDWORD)(lpMemModule + dwFirstThunk))[j]))
 			{
 				LPCSTR lpProcName = realIAT & IMAGE_ORDINAL_FLAG ? (LPCSTR)(realIAT & 65535) : (LPCSTR)(lpMemModule + realIAT + 2);
@@ -281,7 +281,7 @@ static VOID FreeRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, DWORD 
 	}
 }
 
-// Ìî³äµ¼Èë±í
+// å¡«å……å¯¼å…¥è¡¨
 static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam)
 {
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
@@ -299,51 +299,51 @@ static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMP
 		QDWORD realIAT = 0;
 		HMODULE hModule = NULL;
 
-		LPCSTR lpModuleName = (LPCSTR)(lpMemModule + lpImportDescriptor[i].Name);	// Ä£¿éÃû
-		DWORD dwFirstThunk = lpImportDescriptor[i].OriginalFirstThunk ? lpImportDescriptor[i].OriginalFirstThunk : lpImportDescriptor[i].FirstThunk;	// IAT±í
+		LPCSTR lpModuleName = (LPCSTR)(lpMemModule + lpImportDescriptor[i].Name);	// æ¨¡å—å
+		DWORD dwFirstThunk = lpImportDescriptor[i].OriginalFirstThunk ? lpImportDescriptor[i].OriginalFirstThunk : lpImportDescriptor[i].FirstThunk;	// IATè¡¨
 		while (0 != (realIAT = ((PQDWORD)(lpMemModule + dwFirstThunk))[j]))
 		{
-			// ĞòºÅ »ò Ãû³Æ
+			// åºå· æˆ– åç§°
 			LPCSTR lpProcName = realIAT & IMAGE_ORDINAL_FLAG ? (LPCSTR)(realIAT & 65535) : (LPCSTR)(lpMemModule + realIAT + 2);
 
-			// º¯ÊıµØÖ·
+			// å‡½æ•°åœ°å€
 			FARPROC lpAddress = NULL;
 			BOOL bPreventDefault = FALSE;
 			if (NULL != fnImportCallback)
 			{
-				// Í¨¹ı»Øµ÷»ñÈ¡µØÖ·
+				// é€šè¿‡å›è°ƒè·å–åœ°å€
 				bPreventDefault = fnImportCallback(lParam, PE_IMPORTS_TYPE_INIT, lpModuleName, lpProcName, &lpAddress);
 			}
 
-			// Ä¬ÈÏ·½Ê½
+			// é»˜è®¤æ–¹å¼
 			if (FALSE == bPreventDefault)
 			{
 				lpAddress = NULL;
 				if (NULL == hModule)
 				{
-					// ¼ÓÔØÄ£¿é
+					// åŠ è½½æ¨¡å—
 					hModule = LoadLibraryExA(lpModuleName, NULL, 0);
 					if (NULL != hModule)
 					{
-						// ²éÕÒ
+						// æŸ¥æ‰¾
 						IMPORTMODULE_ENTRY* lpEntry = (IMPORTMODULE_ENTRY*)lpPeData->List.Head;
 						while (NULL != lpEntry)
 						{
-							// ÒòÎªÍ¬Ò»¿éÄÚ´æ£¬Ö±½Ó±È½ÏÖ¸Õë
+							// å› ä¸ºåŒä¸€å—å†…å­˜ï¼Œç›´æ¥æ¯”è¾ƒæŒ‡é’ˆ
 							if (lpEntry->ModuleName == lpModuleName) {
 								break;
 							}
 
-							// ÏÂÒ»¸ö
+							// ä¸‹ä¸€ä¸ª
 							lpEntry = (IMPORTMODULE_ENTRY*)lpEntry->Entry.Next;
 						}
 
 						if (NULL != lpEntry) {
-							lpEntry->Count++; // ÒıÓÃÊı+1
+							lpEntry->Count++; // å¼•ç”¨æ•°+1
 						}
 						else
 						{
-							// ¼ÓÈëÁ´±í
+							// åŠ å…¥é“¾è¡¨
 							lpEntry = (IMPORTMODULE_ENTRY*)malloc(sizeof(IMPORTMODULE_ENTRY));
 							if (NULL != lpEntry)
 							{
@@ -354,7 +354,7 @@ static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMP
 							}
 							else
 							{
-								// ³ö´íÊÍ·Å
+								// å‡ºé”™é‡Šæ”¾
 								FreeLibrary(hModule);
 								hModule = NULL;
 							}
@@ -364,20 +364,20 @@ static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMP
 
 				if (NULL != hModule)
 				{
-					// È¡µÃº¯ÊıÖ¸Õë
+					// å–å¾—å‡½æ•°æŒ‡é’ˆ
 					lpAddress = GetProcAddress(hModule, lpProcName);
 				}
 			}
 
-			// ÊÇ·ñÓĞĞ§µØÖ·
+			// æ˜¯å¦æœ‰æ•ˆåœ°å€
 			if (NULL != lpAddress)
 			{
-				// ÓĞĞ§ °ÑµØÖ·Ğ´ÈëFirstThunk
+				// æœ‰æ•ˆ æŠŠåœ°å€å†™å…¥FirstThunk
 				((FARPROC*)(lpMemModule + lpImportDescriptor[i].FirstThunk))[j] = lpAddress;
 			}
 			else
 			{
-				// ¼ÓÔØÊ§°Ü
+				// åŠ è½½å¤±è´¥
 				FreeRavAddress(lpPeData, lpMemModule, i + 1);
 				return FALSE;
 			}
@@ -391,11 +391,11 @@ static BOOL FillRavAddress(PELOADERDATA* lpPeData, ULONG_PTR lpMemModule, PE_IMP
 	return TRUE;
 }
 
-// ²éÕÒÈ«¾Ö¾ä±ú³ÉÔ±
+// æŸ¥æ‰¾å…¨å±€å¥æŸ„æˆå‘˜
 static GLOBALMODULE_ENTRY* FindGlobalModuleEntry(HMODULE hMemModule)
 {
 	GLOBALMODULE_ENTRY* lpResult = NULL;
-	SpinLock(); // Ïß³Ì°²È«
+	SpinLock(); // çº¿ç¨‹å®‰å…¨
 	
 	GLOBALMODULE_ENTRY* lpEntry = (GLOBALMODULE_ENTRY*)GlobalModuleList.Head;
 	while (NULL != lpEntry)
@@ -412,40 +412,40 @@ static GLOBALMODULE_ENTRY* FindGlobalModuleEntry(HMODULE hMemModule)
 	return lpResult;
 }
 
-// ¼ÓÔØÄ£¿é
+// åŠ è½½æ¨¡å—
 HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam)
 {
-	// ¼ì²éPEÍ·
+	// æ£€æŸ¥PEå¤´
 	if (FALSE == CheckPeHeader(lpData, dwLen)) {
 		return NULL;
 	}
 
-	// PEÍ·
+	// PEå¤´
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpData;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpData + lpDosHeader->e_lfanew);
 
-	// ¼ÆËãÓ³Ïñ´óĞ¡
+	// è®¡ç®—æ˜ åƒå¤§å°
 	WORD wOptionalHeaderOffset = lpNtHeader->FileHeader.SizeOfOptionalHeader - sizeof(IMAGE_OPTIONAL_HEADER);
 	PIMAGE_SECTION_HEADER lpSectionHeader = (PIMAGE_SECTION_HEADER)(lpData + lpDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS) + wOptionalHeaderOffset);
 	DWORD dwSizeOfImage = lpNtHeader->OptionalHeader.SizeOfImage;
 
-	// È¡×î´óÖµ
+	// å–æœ€å¤§å€¼
 	for (WORD i = 0; i < lpNtHeader->FileHeader.NumberOfSections; i++) {
 		dwSizeOfImage = MAX(dwSizeOfImage, AlignedSize(lpSectionHeader[i].VirtualAddress + MAX(lpSectionHeader[i].SizeOfRawData, lpSectionHeader[i].Misc.VirtualSize), lpNtHeader->OptionalHeader.SectionAlignment));
 	}
 
-	// Êı¾İÒì³£
+	// æ•°æ®å¼‚å¸¸
 	if (0 == dwSizeOfImage) {
 		return NULL;
 	}
 
-	// ·ÖÅäÄÚ´æ Ä©Î²¼ÓÈë×Ô¶¨ÒåÊı¾İ
+	// åˆ†é…å†…å­˜ æœ«å°¾åŠ å…¥è‡ªå®šä¹‰æ•°æ®
 	ULONG_PTR lpMemModule = (ULONG_PTR)MemAlloc((LPVOID)lpNtHeader->OptionalHeader.ImageBase, dwSizeOfImage + sizeof(PELOADERDATA));
 	if (NULL == (LPVOID)lpMemModule) {
 		return NULL;
 	}
 
-	// ¼ÓÔØÊı¾İ
+	// åŠ è½½æ•°æ®
 	memcpy((LPVOID)lpMemModule, lpData, lpDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS) + wOptionalHeaderOffset + lpNtHeader->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER));
 	for (WORD i = 0; i < lpNtHeader->FileHeader.NumberOfSections; i++)
 	{
@@ -454,7 +454,7 @@ HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, P
 		}
 	}
 
-	// ×Ô¶¨ÒåÊı¾İ
+	// è‡ªå®šä¹‰æ•°æ®
 	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
 	{
 		lpPeData->Param = lParam;
@@ -464,54 +464,55 @@ HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, P
 		lpPeData->List.Count = 0;
 	}
 
-	// È«¾ÖÁ´±í³ÉÔ±
+	// å…¨å±€é“¾è¡¨æˆå‘˜
 	GLOBALMODULE_ENTRY* lpGlobalModuleEntry = (GLOBALMODULE_ENTRY*)malloc(sizeof(GLOBALMODULE_ENTRY));
 	if (NULL != lpGlobalModuleEntry)
 	{
-		// ÉèÖÃÄ£¿é¾ä±ú
+		// è®¾ç½®æ¨¡å—å¥æŸ„
 		lpGlobalModuleEntry->Module = (HMODULE)lpMemModule;
 
-		// ÖØ¶¨ÏòµØÖ·
+		// é‡å®šå‘åœ°å€
 		if (FALSE != DoRelocation(lpMemModule))
 		{
-			// ²»³õÊ¼»¯Ä£¿é
-			if (dwFlags == DONT_RESOLVE_DLL_REFERENCES)
+			// ä¸åˆå§‹åŒ–æ¨¡å—
+			if (DONT_RESOLVE_DLL_REFERENCES == (DONT_RESOLVE_DLL_REFERENCES & dwFlags))
 			{
-				SpinLock(); // Ïß³Ì°²È«¼ÓÈëÈ«¾Ö¾ä±úÁ´±í
+				SpinLock(); // çº¿ç¨‹å®‰å…¨åŠ å…¥å…¨å±€å¥æŸ„é“¾è¡¨
 				SListEntryPush(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
 				UnSpinLock();
 
 				return (HMODULE)lpMemModule;
 			}
 
-			// Ìî³äµ¼Èë±í
+			// å¡«å……å¯¼å…¥è¡¨
 			if (FALSE != FillRavAddress(lpPeData, lpMemModule, fnImportCallback, lParam))
 			{
-				SpinLock(); // Ïß³Ì°²È«¼ÓÈëÈ«¾Ö¾ä±úÁ´±í
+				SpinLock(); // çº¿ç¨‹å®‰å…¨åŠ å…¥å…¨å±€å¥æŸ„é“¾è¡¨
 				SListEntryPush(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
 				UnSpinLock();
 
-				// ²»Ö´ĞĞÈë¿Ú
-				if (IMAGE_FILE_DLL != (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_DLL) || (dwFlags == LOAD_LIBRARY_AS_DATAFILE)) {
+				// ä¸æ‰§è¡Œå…¥å£
+				if (IMAGE_FILE_DLL != (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_DLL) || (LOAD_LIBRARY_AS_DATAFILE == (LOAD_LIBRARY_AS_DATAFILE & dwFlags))) {
 					return (HMODULE)lpMemModule;
 				}
 
-				// ÊÇ·ñ´æÔÚÈë¿Ú
+				// æ˜¯å¦å­˜åœ¨å…¥å£
 				if (0 == lpNtHeader->OptionalHeader.AddressOfEntryPoint) {
 					return (HMODULE)lpMemModule;
 				}
 
-				// Ö´ĞĞÈë¿Ú
+				// æ‰§è¡Œå…¥å£
 				DLLMAIN dllmain = (DLLMAIN)(lpMemModule + lpNtHeader->OptionalHeader.AddressOfEntryPoint);
-				if (FALSE != dllmain((HMODULE)lpMemModule, DLL_PROCESS_ATTACH, NULL)) {
+				HMODULE hModule = (USE_DLL_MODULE == (USE_DLL_MODULE & dwFlags) ? (HMODULE)lpMemModule : GetModuleHandle(NULL));
+				if (FALSE != dllmain(hModule, DLL_PROCESS_ATTACH, NULL)) {
 					return (HMODULE)lpMemModule;
 				}
 
-				SpinLock(); // Ïß³Ì°²È«ÒÆ³ıÈ«¾Ö¾ä±ú
+				SpinLock(); // çº¿ç¨‹å®‰å…¨ç§»é™¤å…¨å±€å¥æŸ„
 				SListEntryRemove(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
 				UnSpinLock();
 
-				// ÊÍ·Åµ¼ÈëÄ£¿é
+				// é‡Šæ”¾å¯¼å…¥æ¨¡å—
 				FreeRavAddress(lpPeData, lpMemModule, 0);
 			}
 		}
@@ -523,7 +524,7 @@ HMODULE WINAPI PeLoader_LoadLibrary(LPBYTE lpData, DWORD dwLen, DWORD dwFlags, P
 	return NULL;
 }
 
-// ÊÍ·ÅÄ£¿é
+// é‡Šæ”¾æ¨¡å—
 BOOL WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 {
 	GLOBALMODULE_ENTRY* lpGlobalModuleEntry = FindGlobalModuleEntry(hMemModule);
@@ -535,17 +536,17 @@ BOOL WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
 
-	// ¼ÆËã´óĞ¡
+	// è®¡ç®—å¤§å°
 	WORD wOptionalHeaderOffset = lpNtHeader->FileHeader.SizeOfOptionalHeader - sizeof(IMAGE_OPTIONAL_HEADER);
 	PIMAGE_SECTION_HEADER lpSectionHeader = (PIMAGE_SECTION_HEADER)(lpMemModule + lpDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS) + wOptionalHeaderOffset);
 	DWORD dwSizeOfImage = lpNtHeader->OptionalHeader.SizeOfImage;
 
-	// È¡×î´óÖµ
+	// å–æœ€å¤§å€¼
 	for (WORD i = 0; i < lpNtHeader->FileHeader.NumberOfSections; i++) {
 		dwSizeOfImage = MAX(dwSizeOfImage, AlignedSize(lpSectionHeader[i].VirtualAddress + MAX(lpSectionHeader[i].SizeOfRawData, lpSectionHeader[i].Misc.VirtualSize), lpNtHeader->OptionalHeader.SectionAlignment));
 	}
 
-	// ¸ù¾İ¼ÓÔØ·½Ê½´¦Àí
+	// æ ¹æ®åŠ è½½æ–¹å¼å¤„ç†
 	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
 	if (IMAGE_FILE_DLL == (lpNtHeader->FileHeader.Characteristics & IMAGE_FILE_DLL) && (DONT_RESOLVE_DLL_REFERENCES != lpPeData->Flags) && (LOAD_LIBRARY_AS_DATAFILE != lpPeData->Flags))
 	{
@@ -555,11 +556,11 @@ BOOL WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 		}
 	}
 
-	SpinLock(); // Ïß³Ì°²È«ÒÆ³ıÈ«¾Ö¾ä±ú
+	SpinLock(); // çº¿ç¨‹å®‰å…¨ç§»é™¤å…¨å±€å¥æŸ„
 	SListEntryRemove(&GlobalModuleList, (SINGLELIST_ENTRY*)lpGlobalModuleEntry);
 	UnSpinLock();
 
-	// ÊÍ·Åµ¼ÈëÄ£¿é
+	// é‡Šæ”¾å¯¼å…¥æ¨¡å—
 	if (DONT_RESOLVE_DLL_REFERENCES != lpPeData->Flags) {
 		FreeRavAddress(lpPeData, lpMemModule, 0);
 	}
@@ -569,30 +570,30 @@ BOOL WINAPI PeLoader_FreeLibrary(HMODULE hMemModule)
 	return TRUE;
 }
 
-// È¡º¯ÊıµØÖ·
+// å–å‡½æ•°åœ°å€
 FARPROC WINAPI PeLoader_GetProcAddress(HMODULE hMemModule, LPCSTR lpProcName)
 {
 	ULONG_PTR lpMemModule = (ULONG_PTR)hMemModule;
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
 
-	// ÊÇ·ñ´æÔÚµ¼³ö±í
+	// æ˜¯å¦å­˜åœ¨å¯¼å‡ºè¡¨
 	if (lpNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size > 0)
 	{
-		// µ¼³ö±íµØÖ·
+		// å¯¼å‡ºè¡¨åœ°å€
 		PIMAGE_EXPORT_DIRECTORY lpExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(lpMemModule + lpNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
 		PDWORD lpAddressOfFunctions = (PDWORD)(lpMemModule + lpExportDirectory->AddressOfFunctions);
 		DWORD dwOrdinals = (DWORD)((ULONG_PTR)lpProcName - lpExportDirectory->Base);
 
-		// ÊÇ·ñĞòºÅ
+		// æ˜¯å¦åºå·
 		if (dwOrdinals >= 0 && dwOrdinals <= lpExportDirectory->NumberOfFunctions)
 		{
-			// Ö±½Ó¸ù¾İË÷ÒıÈ¡µÃ½á¹û
+			// ç›´æ¥æ ¹æ®ç´¢å¼•å–å¾—ç»“æœ
 			return (FARPROC)(lpMemModule + lpAddressOfFunctions[dwOrdinals]);
 		}
 		else
 		{
-			// ²éÕÒÖ¸¶¨º¯Êı
+			// æŸ¥æ‰¾æŒ‡å®šå‡½æ•°
 			PDWORD lpAddressOfNames = (PDWORD)(lpMemModule + lpExportDirectory->AddressOfNames);
 			PWORD lpAddressOfNameOrdinals = (PWORD)(lpMemModule + lpExportDirectory->AddressOfNameOrdinals);
 
@@ -613,7 +614,7 @@ FARPROC WINAPI PeLoader_GetProcAddress(HMODULE hMemModule, LPCSTR lpProcName)
 	return NULL;
 }
 
-// È¡Èë¿Úµã
+// å–å…¥å£ç‚¹
 FARPROC WINAPI PeLoader_GetEntryPoint(HMODULE hMemModule)
 {
 	ULONG_PTR lpMemModule = (ULONG_PTR)hMemModule;
@@ -622,29 +623,29 @@ FARPROC WINAPI PeLoader_GetEntryPoint(HMODULE hMemModule)
 	return (FARPROC)(lpMemModule + lpNtHeader->OptionalHeader.AddressOfEntryPoint);
 }
 
-// »ñÈ¡×Ô¶¨Òå²ÎÊı
+// è·å–è‡ªå®šä¹‰å‚æ•°
 LPVOID WINAPI PeLoader_GetParam(HMODULE hMemModule)
 {
 	ULONG_PTR lpMemModule = (ULONG_PTR)hMemModule;
 	PIMAGE_DOS_HEADER lpDosHeader = (PIMAGE_DOS_HEADER)lpMemModule;
 	PIMAGE_NT_HEADERS lpNtHeader = (PIMAGE_NT_HEADERS)(lpMemModule + lpDosHeader->e_lfanew);
 
-	//¼ÆËã´óĞ¡
+	//è®¡ç®—å¤§å°
 	WORD wOptionalHeaderOffset = lpNtHeader->FileHeader.SizeOfOptionalHeader - sizeof(IMAGE_OPTIONAL_HEADER);
 	PIMAGE_SECTION_HEADER lpSectionHeader = (PIMAGE_SECTION_HEADER)(lpMemModule + lpDosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS) + wOptionalHeaderOffset);
 	DWORD dwSizeOfImage = lpNtHeader->OptionalHeader.SizeOfImage;
 
-	// È¡×î´óÖµ
+	// å–æœ€å¤§å€¼
 	for (WORD i = 0; i < lpNtHeader->FileHeader.NumberOfSections; i++) {
 		dwSizeOfImage = MAX(dwSizeOfImage, AlignedSize(lpSectionHeader[i].VirtualAddress + MAX(lpSectionHeader[i].SizeOfRawData, lpSectionHeader[i].Misc.VirtualSize), lpNtHeader->OptionalHeader.SectionAlignment));
 	}
 
-	// È¡³ö×Ô¶¨Òå²ÎÊı
+	// å–å‡ºè‡ªå®šä¹‰å‚æ•°
 	PELOADERDATA* lpPeData = (PELOADERDATA*)(lpMemModule + dwSizeOfImage);
 	return lpPeData->Param;
 }
 
-// ÅĞ¶Ï¾ä±úÊÇ·ñÓĞĞ§
+// åˆ¤æ–­å¥æŸ„æ˜¯å¦æœ‰æ•ˆ
 BOOL WINAPI PeLoader_IsModule(HMODULE hMemModule)
 {
 	return NULL != FindGlobalModuleEntry(hMemModule);

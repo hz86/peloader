@@ -1,34 +1,34 @@
-#ifndef PELOADER_V2_H
+ï»¿#ifndef PELOADER_V2_H
 #define PELOADER_V2_H
 
 #include "peloader.h"
 
-// DLLÎÄ¼ş°ü¾ä±ú
+// DLLæ–‡ä»¶åŒ…å¥æŸ„
 typedef LPBYTE HDLLS;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-	// ´´½¨DLLÎÄ¼ş°ü
+	// åˆ›å»ºDLLæ–‡ä»¶åŒ…
 	HDLLS WINAPI PeLoader_DllPackage();
 
-	// Ìí¼ÓDLLÎÄ¼şÊı¾İ µÚÒ»¸öDLL×÷ÎªÆô¶¯DLL
-	BOOL WINAPI PeLoader_DllPackage_AddData(HDLLS hDlls, LPCSTR lpName, LPBYTE lpData, DWORD dwLen);
+	// æ·»åŠ DLLæ–‡ä»¶æ•°æ® ç¬¬ä¸€ä¸ªDLLä½œä¸ºå¯åŠ¨DLL
+	BOOL WINAPI PeLoader_DllPackage_AddData(HDLLS hDlls, LPCSTR lpName, LPBYTE lpData, DWORD dwLen, DWORD dwFlags);
 
-	// ÊÍ·ÅÎÄ¼ş°ü
+	// é‡Šæ”¾æ–‡ä»¶åŒ…
 	VOID WINAPI PeLoader_DllPackage_Free(HDLLS hDlls);
 
-	// ¼ÓÔØÄ£¿é
-	HMODULE WINAPI PeLoader_LoadLibraryV2(HDLLS hDlls, DWORD dwFlags, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam);
+	// åŠ è½½æ¨¡å—
+	HMODULE WINAPI PeLoader_LoadLibraryV2(HDLLS hDlls, PE_IMPORT_CALLBACK fnImportCallback, LPVOID lParam);
 
-	// ÊÍ·ÅÄ£¿é
+	// é‡Šæ”¾æ¨¡å—
 	BOOL WINAPI PeLoader_FreeLibraryV2(HMODULE hMemModule);
 
-	// »ñÈ¡×Ô¶¨Òå²ÎÊı
+	// è·å–è‡ªå®šä¹‰å‚æ•°
 	LPVOID WINAPI PeLoader_GetParamV2(HMODULE hMemModule);
 
-	// »ñÈ¡Ä£¿éÃû
+	// è·å–æ¨¡å—å
 	BOOL WINAPI PeLoader_GetModuleFileNameV2(HMODULE hMemModule, LPSTR lpFilename, DWORD nSize);
 
 #ifdef __cplusplus
