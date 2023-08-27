@@ -28,11 +28,11 @@ PeLoader_FreeLibrary(hModule);
 ```
 // 把有关依赖DLL全部打包进去
 HDLLS hDlls = PeLoader_DllPackage();
-PeLoader_DllPackage_AddData(hDlls, "TestDllB.dll", TestDllB, TestDllBLen);
-PeLoader_DllPackage_AddData(hDlls, "TestDllA.dll", TestDllA, TestDllALen);
+PeLoader_DllPackage_AddData(hDlls, "TestDllB.dll", TestDllB, TestDllBLen, 0);
+PeLoader_DllPackage_AddData(hDlls, "TestDllA.dll", TestDllA, TestDllALen, 0);
 
 // 加载包内的DLL，第一个DLL为主DLL
-HMODULE hModule = PeLoader_LoadLibraryV2(hDlls, 0, NULL, NULL);
+HMODULE hModule = PeLoader_LoadLibraryV2(hDlls, NULL, NULL);
 
 // 可以获取文件名
 CHAR FileName[MAX_PATH];
